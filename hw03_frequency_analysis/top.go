@@ -17,7 +17,7 @@ func Top10(text string) []string {
 	uniqueWords := []string{}
 
 	for _, word := range strings.Fields(text) {
-		word = strings.Trim(word, ".?!,:;-[]{}()\"")
+		word = strings.Trim(word, ".?!,:;-[]{}()\"'")
 		word = strings.ToLower(word)
 		if len(word) == 0 {
 			continue

@@ -48,6 +48,34 @@ func TestTop10(t *testing.T) {
 		require.Len(t, Top10(""), 0)
 	})
 
+	t.Run("different word forms are different words", func(t *testing.T) {
+		text := "нога, ногу, ноги"
+		expected := []string{
+			"нога",
+			"ноги",
+			"ногу",
+		}
+		require.Equal(t, expected, Top10(text))
+	})
+
+	t.Run("different cases and quoted words are same word", func(t *testing.T) {
+		text := "Нога нога нога! нога нога, 'нога' \"нога\""
+		expected := []string{"нога"}
+		require.Equal(t, expected, Top10(text))
+	})
+
+	t.Run("different cases and quoted words are same word", func(t *testing.T) {
+		text := "Нога нога нога! нога нога, 'нога' \"нога\""
+		expected := []string{"нога"}
+		require.Equal(t, expected, Top10(text))
+	})
+
+	t.Run("punctuation marks inside words are not removed", func(t *testing.T) {
+		text := "какой-то какойто"
+		expected := []string{"какой-то", "какойто"}
+		require.Equal(t, expected, Top10(text))
+	})
+
 	t.Run("positive test", func(t *testing.T) {
 		if taskWithAsteriskIsCompleted {
 			expected := []string{
