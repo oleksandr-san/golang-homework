@@ -15,6 +15,25 @@ func TestList(t *testing.T) {
 		require.Nil(t, l.Back())
 	})
 
+	t.Run("remove fron single item list makes it empty", func(t *testing.T) {
+		l := NewList()
+		l.PushBack(1)
+		l.Remove(l.Front())
+
+		require.Equal(t, 0, l.Len())
+		require.Nil(t, l.Front())
+		require.Nil(t, l.Back())
+	})
+
+	t.Run("single element accessible from both ends", func(t *testing.T) {
+		l := NewList()
+		l.PushBack(42)
+
+		require.Equal(t, 1, l.Len())
+		require.Equal(t, 42, l.Front().Value)
+		require.Equal(t, 42, l.Back().Value)
+	})
+
 	t.Run("complex", func(t *testing.T) {
 		l := NewList()
 
