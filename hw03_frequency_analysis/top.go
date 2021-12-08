@@ -38,5 +38,5 @@ func Top10(text string) []string {
 		return wordCounters[wordI] > wordCounters[wordJ]
 	})
 
-	return uniqueWords[0:min(len(uniqueWords), 10)]
+	return uniqueWords[:min(len(uniqueWords), 10)]
 }
