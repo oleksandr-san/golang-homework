@@ -123,6 +123,6 @@ func TestRun(t *testing.T) {
 		err := Run(tasks, workersCount, maxErrorsCount)
 
 		require.Truef(t, errors.Is(err, ErrNoWorkersRequested), "actual err - %v", err)
-		require.LessOrEqual(t, runTasksCount, int32(0), "no workers - no work!")
+		require.Equal(t, runTasksCount, int32(0), "no workers - no work!")
 	})
 }
