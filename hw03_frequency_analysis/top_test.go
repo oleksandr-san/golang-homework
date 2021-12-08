@@ -7,7 +7,7 @@ import (
 )
 
 // Change to true if needed.
-var taskWithAsteriskIsCompleted = false
+var taskWithAsteriskIsCompleted = true
 
 var text = `Как видите, он  спускается  по  лестнице  вслед  за  своим
 	другом   Кристофером   Робином,   головой   вниз,  пересчитывая
@@ -46,6 +46,34 @@ var text = `Как видите, он  спускается  по  лестни�
 func TestTop10(t *testing.T) {
 	t.Run("no words in empty string", func(t *testing.T) {
 		require.Len(t, Top10(""), 0)
+	})
+
+	t.Run("different word forms are different words", func(t *testing.T) {
+		text := "нога, ногу, ноги"
+		expected := []string{
+			"нога",
+			"ноги",
+			"ногу",
+		}
+		require.Equal(t, expected, Top10(text))
+	})
+
+	t.Run("different cases and quoted words are same word", func(t *testing.T) {
+		text := "Нога нога нога! нога нога, 'нога' \"нога\""
+		expected := []string{"нога"}
+		require.Equal(t, expected, Top10(text))
+	})
+
+	t.Run("different cases and quoted words are same word", func(t *testing.T) {
+		text := "Нога нога нога! нога нога, 'нога' \"нога\""
+		expected := []string{"нога"}
+		require.Equal(t, expected, Top10(text))
+	})
+
+	t.Run("punctuation marks inside words are not removed", func(t *testing.T) {
+		text := "какой-то какойто"
+		expected := []string{"какой-то", "какойто"}
+		require.Equal(t, expected, Top10(text))
 	})
 
 	t.Run("positive test", func(t *testing.T) {
