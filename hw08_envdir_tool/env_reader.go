@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"io/ioutil"
 	"path/filepath"
 	"strings"
@@ -36,8 +37,7 @@ func ReadDir(dir string) (Environment, error) {
 		if len(content) == 0 {
 			env[entry.Name()] = EnvValue{NeedRemove: true}
 		} else {
-			// content = bytes.Split(content, []byte{32})[0]
-			firstLine := strings.Split(string(content), "\n")[0]
+			firstLine := string(bytes.Split(content, []byte{10})[0])
 
 			value := strings.TrimRight(firstLine, "\t ")
 			value = strings.ReplaceAll(value, string(rune(0)), "\n")
