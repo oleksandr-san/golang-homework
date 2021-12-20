@@ -36,10 +36,10 @@ func ReadDir(dir string) (Environment, error) {
 		if len(content) == 0 {
 			env[entry.Name()] = EnvValue{NeedRemove: true}
 		} else {
-			//content = bytes.Split(content, []byte{32})[0]
-			first_line := strings.Split(string(content), "\n")[0]
+			// content = bytes.Split(content, []byte{32})[0]
+			firstLine := strings.Split(string(content), "\n")[0]
 
-			value := strings.TrimRight(first_line, "\t ")
+			value := strings.TrimRight(firstLine, "\t ")
 			value = strings.ReplaceAll(value, string(rune(0)), "\n")
 
 			env[entry.Name()] = EnvValue{Value: value}
