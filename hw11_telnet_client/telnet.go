@@ -44,10 +44,7 @@ func (t *telnetClient) Close() error {
 	if err := t.conn.Close(); err != nil {
 		return err
 	}
-	if err := t.in.Close(); err != nil {
-		return err
-	}
-	return nil
+	return t.in.Close()
 }
 
 func (t *telnetClient) Receive() error {
