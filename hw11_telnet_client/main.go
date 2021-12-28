@@ -63,8 +63,7 @@ func main() {
 
 	client := NewTelnetClient(address, *timeout, os.Stdin, os.Stdout)
 	log.Println("Connecting to", address)
-	err := client.Connect()
-	if err != nil {
+	if err := client.Connect(); err != nil {
 		log.Fatal(err)
 	}
 
