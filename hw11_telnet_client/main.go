@@ -1,56 +1,37 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"log"
 	"net"
 	"os"
-	"os/signal"
 	"sync"
 	"time"
 )
 
-func receiveRoutine(ctx context.Context, client TelnetClient, wg *sync.WaitGroup) {
+func receiveRoutine(client TelnetClient, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-OUTER:
-	for {
-		select {
-		case <-ctx.Done():
-			break OUTER
-		default:
-			if err := client.Receive(); err != nil {
-				log.Print(err)
-				// cancel()
-				break OUTER
-			}
+	if err := client.Receive(); err == nil {
+		log.Println("...Connection was closed by peer")
+		if err := client.Close(); err != nil {
+			log.Println("...Receive side closing error", err)
 		}
 	}
-
-	log.Printf("Finished receiveRoutine")
 }
 
-func sendRoutine(ctx context.Context, client TelnetClient, wg *sync.WaitGroup) {
+func sendRoutine(client TelnetClient, wg *sync.WaitGroup) {
 	defer wg.Done()
-	// scanner := bufio.NewScanner(os.Stdin)
-OUTER:
-	for {
-		select {
-		case <-ctx.Done():
-			break OUTER
-		default:
-			if err := client.Send(); err != nil {
-				log.Println(err)
-				break OUTER
-			}
+
+	if err := client.Send(); err == nil {
+		log.Println("...EOF")
+		if err := client.Close(); err != nil {
+			log.Println("...Send side closing error", err)
 		}
 	}
-	log.Printf("Finished sendRoutine")
 }
 
 func main() {
-	// P.S. Do not rush to throw context down, think think if it is useful with blocking operation?
 	timeout := flag.Duration("timeout", 10*time.Second, "")
 	flag.Parse()
 	if flag.NArg() != 2 {
@@ -62,23 +43,19 @@ func main() {
 	address := net.JoinHostPort(host, port)
 
 	client := NewTelnetClient(address, *timeout, os.Stdin, os.Stdout)
-	log.Println("Connecting to", address)
 	if err := client.Connect(); err != nil {
 		log.Fatal(err)
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer stop()
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	log.Println("...Connected to", address)
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
-	go receiveRoutine(ctx, client, wg)
+	go receiveRoutine(client, wg)
 
 	wg.Add(1)
-	go sendRoutine(ctx, client, wg)
+	go sendRoutine(client, wg)
 
 	wg.Wait()
-	cancel()
 	client.Close()
 }

@@ -48,19 +48,11 @@ func (t *telnetClient) Close() error {
 }
 
 func (t *telnetClient) Receive() error {
-	if err := t.conn.SetReadDeadline(time.Now().Add(t.timeout)); err != nil {
-		return err
-	}
-
 	_, err := io.Copy(t.out, t.conn)
 	return err
 }
 
 func (t *telnetClient) Send() error {
-	if err := t.conn.SetWriteDeadline(time.Now().Add(t.timeout)); err != nil {
-		return err
-	}
-
 	_, err := io.Copy(t.conn, t.in)
 	return err
 }
