@@ -4,28 +4,23 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 )
 
 var (
-	ErrUnsupportedType     = errors.New("unsupported type for validation")
-	ErrInvalidStringLength = errors.New("invalid string length")
+	ErrUnsupportedType   = errors.New("unsupported type for validation")
+	ErrUnsupportedRule   = errors.New("unsupported validation rule")
+	ErrInvalidRuleSyntax = errors.New("invalid validation rule syntax")
+
+	ErrProhibitedValue      = errors.New("value is not allowed")
+	ErrStringInvalidLength  = errors.New("invalid string length")
+	ErrStringRegexpMismatch = errors.New("value does not match regular expression")
+	ErrNumberTooSmall       = errors.New("number value is too small")
+	ErrNumberTooBig         = errors.New("number value is too big")
 )
-
-type RuleError struct {
-	Field string
-	Rule  string
-	Err   error
-}
-
-func (e *RuleError) Error() string {
-	panic("implement me")
-}
-
-func (e *RuleError) Unwrap() error {
-	return e.Err
-}
 
 type ValidationError struct {
 	Field string
@@ -35,7 +30,248 @@ type ValidationError struct {
 type ValidationErrors []ValidationError
 
 func (v ValidationErrors) Error() string {
-	panic("implement me")
+	return "ValidationError"
+}
+
+type validator func(string, reflect.Value) error
+
+func mergeValidators(validators []validator) validator {
+	return func(name string, value reflect.Value) error {
+		var mergedErrors ValidationErrors
+		for _, v := range validators {
+			if err := v(name, value); err != nil {
+				var localErrors ValidationErrors
+				if errors.As(err, &localErrors) {
+					mergedErrors = append(mergedErrors, localErrors...)
+				}
+			}
+		}
+
+		if len(mergedErrors) == 0 {
+			return nil
+		}
+
+		return mergedErrors
+	}
+}
+
+func makeStringValidator(tag string) (validator, error) {
+	var validators []validator
+
+	for _, rawRule := range strings.Split(tag, "|") {
+		rule := strings.SplitN(rawRule, ":", 2)
+		if len(rule) != 2 {
+			return nil, ErrInvalidRuleSyntax
+		}
+
+		switch rule[0] {
+		case "len":
+			requiredLength, err := strconv.Atoi(rule[1])
+			if err != nil {
+				return nil, err
+			}
+
+			validators = append(validators, func(n string, v reflect.Value) error {
+				if len(v.String()) != requiredLength {
+					return ValidationErrors{
+						ValidationError{n, ErrStringInvalidLength},
+					}
+				}
+				return nil
+			})
+
+		case "regexp":
+			re, err := regexp.Compile(rule[1])
+			if err != nil {
+				return nil, err
+			}
+
+			validators = append(validators, func(n string, v reflect.Value) error {
+				if !re.MatchString(v.String()) {
+					return ValidationErrors{
+						ValidationError{n, ErrStringRegexpMismatch},
+					}
+				}
+				return nil
+			})
+
+		case "in":
+			allowedValues := strings.Split(rule[1], ",")
+			sort.Strings(allowedValues)
+
+			validators = append(validators, func(n string, v reflect.Value) error {
+				value := v.String()
+				i := sort.SearchStrings(allowedValues, value)
+				if i >= len(allowedValues) || allowedValues[i] != value {
+					return ValidationErrors{
+						ValidationError{n, ErrProhibitedValue},
+					}
+				}
+				return nil
+			})
+
+		default:
+			return nil, ErrUnsupportedRule
+		}
+	}
+
+	return mergeValidators(validators), nil
+}
+
+func parseInts(rawValues string) ([]int, error) {
+	values := []int{}
+	for _, rawValue := range strings.Split(rawValues, ",") {
+		value, err := strconv.Atoi(rawValue)
+		if err != nil {
+			return nil, err
+		}
+
+		values = append(values, value)
+	}
+	return values, nil
+}
+
+func makeIntValidator(tag string) (validator, error) {
+	var validators []validator
+
+	for _, rawRule := range strings.Split(tag, "|") {
+		rule := strings.SplitN(rawRule, ":", 2)
+		if len(rule) != 2 {
+			return nil, ErrInvalidRuleSyntax
+		}
+
+		switch rule[0] {
+		case "min":
+			minValue, err := strconv.ParseInt(rule[1], 10, 0)
+			if err != nil {
+				return nil, err
+			}
+
+			validators = append(validators, func(n string, v reflect.Value) error {
+				if v.Int() < minValue {
+					return ValidationErrors{
+						ValidationError{n, ErrNumberTooSmall},
+					}
+				}
+				return nil
+			})
+
+		case "max":
+			maxValue, err := strconv.ParseInt(rule[1], 10, 0)
+			if err != nil {
+				return nil, err
+			}
+
+			validators = append(validators, func(n string, v reflect.Value) error {
+				if v.Int() > maxValue {
+					return ValidationErrors{
+						ValidationError{n, ErrNumberTooBig},
+					}
+				}
+				return nil
+			})
+
+		case "in":
+			allowedValues, err := parseInts(rule[1])
+			if err != nil {
+				return nil, err
+			}
+			sort.Ints(allowedValues)
+
+			validators = append(validators, func(n string, v reflect.Value) error {
+				value := int(v.Int())
+				i := sort.SearchInts(allowedValues, value)
+				if i >= len(allowedValues) || allowedValues[i] != value {
+					return ValidationErrors{
+						ValidationError{n, ErrProhibitedValue},
+					}
+				}
+				return nil
+			})
+
+		default:
+			return nil, ErrUnsupportedRule
+		}
+	}
+
+	return mergeValidators(validators), nil
+}
+
+func makeValidator(t reflect.Type, tag string) (validator, error) {
+	switch t.Kind() {
+	case reflect.String:
+		return makeStringValidator(tag)
+
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32:
+		return makeIntValidator(tag)
+
+	case reflect.Slice:
+		elemValidator, err := makeValidator(t.Elem(), tag)
+		if err != nil {
+			return nil, err
+		}
+
+		return func(name string, v reflect.Value) error {
+			var sliceErrors ValidationErrors
+			for i := 0; i < v.Len(); i++ {
+				elemName := fmt.Sprintf("%s[%d]", name, i)
+				if err := elemValidator(elemName, v.Index(i)); err != nil {
+					var fieldErrors ValidationErrors
+					if errors.As(err, &fieldErrors) {
+						sliceErrors = append(sliceErrors, fieldErrors...)
+					} else {
+						return err
+					}
+				}
+			}
+			return sliceErrors
+		}, nil
+
+	case reflect.Struct:
+		if tag == "nested" {
+			return func(name string, v reflect.Value) error {
+				return validateStruct(name+".", v)
+			}, nil
+		}
+
+	default:
+	}
+
+	return nil, ErrUnsupportedType
+}
+
+func validateStruct(prefix string, s reflect.Value) error {
+	var structErrors ValidationErrors
+
+	sType := s.Type()
+	for i := 0; i < s.NumField(); i++ {
+		sf := sType.Field(i)
+
+		tag, found := sf.Tag.Lookup("validate")
+		if !found {
+			continue
+		}
+
+		validator, err := makeValidator(sf.Type, tag)
+		if err != nil {
+			return err
+		}
+
+		if err := validator(prefix+sf.Name, s.Field(i)); err != nil {
+			var fieldErrors ValidationErrors
+			if errors.As(err, &fieldErrors) {
+				structErrors = append(structErrors, fieldErrors...)
+			} else {
+				return err
+			}
+		}
+	}
+
+	if len(structErrors) != 0 {
+		return structErrors
+	}
+
+	return nil
 }
 
 func Validate(v interface{}) error {
@@ -44,46 +280,5 @@ func Validate(v interface{}) error {
 		return ErrUnsupportedType
 	}
 
-	sType := s.Type()
-
-	var validationErrors ValidationErrors
-	for i := 0; i < s.NumField(); i++ {
-		f := s.Field(i)
-		fType := sType.Field(i)
-
-		rawRules, found := fType.Tag.Lookup("validate")
-		if !found {
-			continue
-		}
-
-		for _, rule := range strings.Split(rawRules, "|") {
-			ruleComponents := strings.SplitN(rule, ":", 2)
-			if ruleComponents[0] == "len" {
-				requiredLength, err := strconv.Atoi(ruleComponents[1])
-				if err != nil {
-					return &RuleError{
-						Field: fType.Name,
-						Rule:  ruleComponents[0],
-						Err:   err,
-					}
-				}
-
-				if len(f.String()) != requiredLength {
-					validationError := ValidationError{
-						Field: fType.Name,
-						Err:   ErrInvalidStringLength,
-					}
-					validationErrors = append(validationErrors, validationError)
-				}
-			}
-		}
-
-		fmt.Println(f, fType, rawRules)
-	}
-
-	if len(validationErrors) != 0 {
-		return validationErrors
-	}
-
-	return nil
+	return validateStruct("", s)
 }

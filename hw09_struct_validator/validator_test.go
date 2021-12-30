@@ -36,6 +36,12 @@ type (
 		Code int    `validate:"in:200,404,500"`
 		Body string `json:"omitempty"`
 	}
+
+	Context struct {
+		FirstResponse  Response `validate:"nested"`
+		SecondResponse Response `validate:"nested"`
+		Token          Token    `validate:"nested"`
+	}
 )
 
 func TestValidate(t *testing.T) {
@@ -49,14 +55,97 @@ func TestValidate(t *testing.T) {
 		{
 			in: App{"0"},
 			expectedErr: ValidationErrors{
-				ValidationError{"Version", ErrInvalidStringLength},
+				ValidationError{"Version", ErrStringInvalidLength},
 			},
 		},
 		{
-			in: User{"1", "alex", 42, "at@at.at", "stuff", []string{}, json.RawMessage{}},
+			in: User{
+				ID:   "ff285bd7-e473-4639-98d3-af5171790621",
+				Name: "John", Age: 49, Email: "at@at.at",
+				Role: "admin", Phones: []string{
+					"+1111111111",
+				}, meta: json.RawMessage{},
+			},
 		},
-		// ...
-		// Place your code here.
+		{
+			in: User{
+				ID:   "ff285bd7-e473-4639-98d3-af5171790621",
+				Name: "Alex", Age: 17, Email: "invalid",
+				Role: "stuff", Phones: []string{}, meta: json.RawMessage{},
+			},
+			expectedErr: ValidationErrors{
+				ValidationError{"Age", ErrNumberTooSmall},
+				ValidationError{"Email", ErrStringRegexpMismatch},
+			},
+		},
+		{
+			in: User{
+				ID:   "ff285bd7-e473-4639-98d3-af5171790621",
+				Name: "Billy", Age: 52, Email: "at@at.at",
+				Role: "pleb", Phones: []string{
+					"+1111111111",
+					"+222222222",
+				}, meta: json.RawMessage{},
+			},
+			expectedErr: ValidationErrors{
+				ValidationError{"Age", ErrNumberTooBig},
+				ValidationError{"Role", ErrProhibitedValue},
+				ValidationError{"Phones[1]", ErrStringInvalidLength},
+			},
+		},
+		{
+			in: Context{
+				Response{Code: 200, Body: "{}"},
+				Response{Code: 418, Body: "{}"},
+				Token{},
+			},
+			expectedErr: ValidationErrors{
+				ValidationError{"SecondResponse.Code", ErrProhibitedValue},
+			},
+		},
+		{
+			in: struct {
+				TwoDigits string `validate:"regexp:^\\d+$|len:20"`
+			}{"2a3a"},
+			expectedErr: ValidationErrors{
+				ValidationError{"TwoDigits", ErrStringRegexpMismatch},
+				ValidationError{"TwoDigits", ErrStringInvalidLength},
+			},
+		},
+		{
+			in:          &Token{},
+			expectedErr: ErrUnsupportedType,
+		},
+		{
+			in: struct {
+				Map map[string]string `validate:"len:10"`
+			}{},
+			expectedErr: ErrUnsupportedType,
+		},
+		{
+			in: struct {
+				V int `validate:"len:10"`
+			}{},
+			expectedErr: ErrUnsupportedRule,
+		},
+		{
+			in: struct {
+				S []string `validate:"max:10"`
+			}{},
+			expectedErr: ErrUnsupportedRule,
+		},
+		{
+			in: struct {
+				V int `validate:"len"`
+			}{},
+			expectedErr: ErrInvalidRuleSyntax,
+		},
+		{
+			in: struct {
+				S string `validate:"max"`
+			}{},
+			expectedErr: ErrInvalidRuleSyntax,
+		},
 	}
 
 	for i, tt := range tests {
