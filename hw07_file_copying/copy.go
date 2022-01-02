@@ -44,6 +44,7 @@ func Copy(fromPath, toPath string, offset, limit int64) error {
 	if err != nil {
 		return err
 	}
+	defer fromFile.Close()
 
 	_, err = fromFile.Seek(offset, io.SeekStart)
 	if err != nil {
@@ -54,6 +55,7 @@ func Copy(fromPath, toPath string, offset, limit int64) error {
 	if err != nil {
 		return err
 	}
+	defer toFile.Close()
 
 	bar := pb.Full.Start64(limit)
 	defer bar.Finish()
