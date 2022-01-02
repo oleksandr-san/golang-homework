@@ -30,7 +30,11 @@ type ValidationError struct {
 type ValidationErrors []ValidationError
 
 func (v ValidationErrors) Error() string {
-	return "ValidationError"
+	errorStrings := make([]string, len(v))
+	for i, err := range v {
+		errorStrings[i] = err.Err.Error()
+	}
+	return strings.Join(errorStrings, "; ")
 }
 
 type validator func(string, reflect.Value) error
@@ -202,7 +206,7 @@ func makeValidator(t reflect.Type, tag string) (validator, error) {
 	case reflect.String:
 		return makeStringValidator(tag)
 
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32:
+	case reflect.Int:
 		return makeIntValidator(tag)
 
 	case reflect.Slice:
@@ -234,6 +238,16 @@ func makeValidator(t reflect.Type, tag string) (validator, error) {
 			}, nil
 		}
 
+	// Ugly code to silence switch statement exhaustiveness check
+	case reflect.Array, reflect.Bool, reflect.Chan,
+		reflect.Complex128, reflect.Complex64,
+		reflect.Float32, reflect.Float64,
+		reflect.Func, reflect.Int16, reflect.Int32,
+		reflect.Int64, reflect.Int8, reflect.Interface,
+		reflect.Invalid, reflect.Map, reflect.Ptr,
+		reflect.Uint, reflect.Uint16, reflect.Uint32,
+		reflect.Uint64, reflect.Uint8, reflect.Uintptr,
+		reflect.UnsafePointer:
 	default:
 	}
 
