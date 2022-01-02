@@ -1,7 +1,6 @@
 package main
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -13,10 +12,10 @@ const tempFile = "/tmp/out"
 func requireEqualToTmp(t *testing.T, expectedPath string) {
 	t.Helper()
 
-	expected, err := ioutil.ReadFile(expectedPath)
+	expected, err := os.ReadFile(expectedPath)
 	require.Nil(t, err)
 
-	actual, err := ioutil.ReadFile(tempFile)
+	actual, err := os.ReadFile(tempFile)
 	require.Nil(t, err)
 
 	require.Equal(t, expected, actual)
