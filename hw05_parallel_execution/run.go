@@ -20,13 +20,13 @@ func Run(tasks []Task, n, m int) error {
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(n)
 	defer wg.Wait()
 
 	tasksCh := make(chan Task)
 	var errorCount int32
 
 	for i := 0; i < n; i++ {
+		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for task := range tasksCh {
