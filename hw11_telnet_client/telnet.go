@@ -1,10 +1,13 @@
 package main
 
 import (
+	"errors"
 	"io"
 	"net"
 	"time"
 )
+
+var ErrNotConnected = errors.New("client is not connected")
 
 type TelnetClient interface {
 	Connect() error
@@ -41,6 +44,10 @@ func (t *telnetClient) Connect() error {
 }
 
 func (t *telnetClient) Close() error {
+	if t.conn == nil {
+		return ErrNotConnected
+	}
+
 	if err := t.conn.Close(); err != nil {
 		return err
 	}
@@ -48,11 +55,19 @@ func (t *telnetClient) Close() error {
 }
 
 func (t *telnetClient) Receive() error {
+	if t.conn == nil {
+		return ErrNotConnected
+	}
+
 	_, err := io.Copy(t.out, t.conn)
 	return err
 }
 
 func (t *telnetClient) Send() error {
+	if t.conn == nil {
+		return ErrNotConnected
+	}
+
 	_, err := io.Copy(t.conn, t.in)
 	return err
 }
