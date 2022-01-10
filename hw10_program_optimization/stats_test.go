@@ -66,8 +66,8 @@ func TestGetDomainStatEdgeCases(t *testing.T) {
 
 	t.Run("invalid domain", func(t *testing.T) {
 		result, err := GetDomainStat(bytes.NewBufferString(data), "(")
-		require.Error(t, err)
-		require.Equal(t, DomainStat(nil), result)
+		require.NoError(t, err)
+		require.Equal(t, DomainStat{}, result)
 	})
 }
 

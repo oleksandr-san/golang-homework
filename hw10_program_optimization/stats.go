@@ -2,8 +2,8 @@ package hw10programoptimization
 
 import (
 	"bufio"
+	"bytes"
 	"io"
-	"regexp"
 	"strings"
 
 	"github.com/valyala/fastjson"
@@ -12,10 +12,8 @@ import (
 type DomainStat map[string]int
 
 func GetDomainStat(r io.Reader, domain string) (DomainStat, error) {
-	re, err := regexp.Compile("\\." + domain)
-	if err != nil {
-		return nil, err
-	}
+	suffix := []byte(".")
+	suffix = append(suffix, []byte(domain)...)
 
 	scanner := bufio.NewScanner(r)
 	var parser fastjson.Parser
@@ -32,7 +30,8 @@ func GetDomainStat(r io.Reader, domain string) (DomainStat, error) {
 			return nil, err
 		}
 
-		if email := value.GetStringBytes("Email"); email != nil && re.Match(email) {
+		email := value.GetStringBytes("Email")
+		if email != nil && bytes.HasSuffix(email, suffix) {
 			domain := strings.ToLower(strings.SplitN(string(email), "@", 2)[1])
 			domainStat[domain]++
 		}
