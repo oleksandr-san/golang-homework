@@ -1,8 +1,10 @@
+//go:build !bench
 // +build !bench
 
 package hw10programoptimization
 
 import (
+	"archive/zip"
 	"bytes"
 	"testing"
 
@@ -36,4 +38,48 @@ func TestGetDomainStat(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, DomainStat{}, result)
 	})
+}
+
+func TestGetDomainStatEdgeCases(t *testing.T) {
+	data := `{"Username":"0Oliver","Email":"aliquid_qui_ea@Browsedrive.gov"}
+
+{"Id":3,"Name":"Clarence Olson","Username":"RachelAdams","Phone":"988-48-97","Password":"71kuz3gA5w","Address":"Monterey Park 39"}
+{"Email":["nulla@Linktype.com"]}`
+
+	t.Run("find 'com'", func(t *testing.T) {
+		result, err := GetDomainStat(bytes.NewBufferString(data), "com")
+		require.NoError(t, err)
+		require.Equal(t, DomainStat{}, result)
+	})
+
+	t.Run("find 'gov'", func(t *testing.T) {
+		result, err := GetDomainStat(bytes.NewBufferString(data), "gov")
+		require.NoError(t, err)
+		require.Equal(t, DomainStat{"browsedrive.gov": 1}, result)
+	})
+
+	t.Run("find 'unknown'", func(t *testing.T) {
+		result, err := GetDomainStat(bytes.NewBufferString(data), "unknown")
+		require.NoError(t, err)
+		require.Equal(t, DomainStat{}, result)
+	})
+
+	t.Run("invalid domain", func(t *testing.T) {
+		result, err := GetDomainStat(bytes.NewBufferString(data), "(")
+		require.NoError(t, err)
+		require.Equal(t, DomainStat{}, result)
+	})
+}
+
+func BenchmarkGetDomainStat(b *testing.B) {
+	r, err := zip.OpenReader("testdata/users.dat.zip")
+	require.NoError(b, err)
+	defer r.Close()
+
+	data, err := r.File[0].Open()
+	require.NoError(b, err)
+
+	for i := 0; i < b.N; i++ {
+		_, _ = GetDomainStat(data, "biz")
+	}
 }
