@@ -23,11 +23,13 @@ function fileEquals() {
 expected_nc_out='I
 am
 TELNET client'
+cat /tmp/nc.out
 fileEquals /tmp/nc.out "${expected_nc_out}"
 
 expected_telnet_out='Hello
 From
 NC'
+cat /tmp/telnet.out
 fileEquals /tmp/telnet.out "${expected_telnet_out}"
 
 rm -f go-telnet

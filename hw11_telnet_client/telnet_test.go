@@ -62,4 +62,11 @@ func TestTelnetClient(t *testing.T) {
 
 		wg.Wait()
 	})
+
+	t.Run("error on connection failure", func(t *testing.T) {
+		in := &bytes.Buffer{}
+		out := &bytes.Buffer{}
+		client := NewTelnetClient("non-existent:42", time.Second, ioutil.NopCloser(in), out)
+		require.Error(t, client.Connect())
+	})
 }

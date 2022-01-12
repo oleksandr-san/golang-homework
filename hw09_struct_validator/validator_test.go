@@ -2,8 +2,11 @@ package hw09structvalidator
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 type UserRole string
@@ -34,6 +37,20 @@ type (
 		Code int    `validate:"in:200,404,500"`
 		Body string `json:"omitempty"`
 	}
+
+	Context struct {
+		FirstResponse  Response `validate:"nested"`
+		SecondResponse Response `validate:"nested"`
+		Token          Token    `validate:"nested"`
+	}
+
+	BrokenIntSet struct {
+		V int `validate:"in:a,b,c"`
+	}
+
+	BrokenNested struct {
+		S []BrokenIntSet `validate:"nested"`
+	}
 )
 
 func TestValidate(t *testing.T) {
@@ -42,10 +59,102 @@ func TestValidate(t *testing.T) {
 		expectedErr error
 	}{
 		{
-			// Place your code here.
+			in: App{"0.0.0"},
 		},
-		// ...
-		// Place your code here.
+		{
+			in: App{"0"},
+			expectedErr: ValidationErrors{
+				ValidationError{"Version", ErrStringInvalidLength},
+			},
+		},
+		{
+			in: User{
+				ID:   "ff285bd7-e473-4639-98d3-af5171790621",
+				Name: "John", Age: 49, Email: "at@at.at",
+				Role: "admin", Phones: []string{
+					"+1111111111",
+				}, meta: json.RawMessage{},
+			},
+		},
+		{
+			in: User{
+				ID:   "ff285bd7-e473-4639-98d3-af5171790621",
+				Name: "Alex", Age: 17, Email: "invalid",
+				Role: "stuff", Phones: []string{}, meta: json.RawMessage{},
+			},
+			expectedErr: ValidationErrors{
+				ValidationError{"Age", ErrNumberTooSmall},
+				ValidationError{"Email", ErrStringRegexpMismatch},
+			},
+		},
+		{
+			in: User{
+				ID:   "ff285bd7-e473-4639-98d3-af5171790621",
+				Name: "Billy", Age: 52, Email: "at@at.at",
+				Role: "pleb", Phones: []string{
+					"+1111111111",
+					"+222222222",
+				}, meta: json.RawMessage{},
+			},
+			expectedErr: ValidationErrors{
+				ValidationError{"Age", ErrNumberTooBig},
+				ValidationError{"Role", ErrProhibitedValue},
+				ValidationError{"Phones[1]", ErrStringInvalidLength},
+			},
+		},
+		{
+			in: Context{
+				Response{Code: 200, Body: "{}"},
+				Response{Code: 418, Body: "{}"},
+				Token{},
+			},
+			expectedErr: ValidationErrors{
+				ValidationError{"SecondResponse.Code", ErrProhibitedValue},
+			},
+		},
+		{
+			in: struct {
+				TwoDigits string `validate:"regexp:^\\d+$|len:20"`
+			}{"2a3a"},
+			expectedErr: ValidationErrors{
+				ValidationError{"TwoDigits", ErrStringRegexpMismatch},
+				ValidationError{"TwoDigits", ErrStringInvalidLength},
+			},
+		},
+		{
+			in:          &Token{},
+			expectedErr: ErrUnsupportedType,
+		},
+		{
+			in: struct {
+				Map map[string]string `validate:"len:10"`
+			}{},
+			expectedErr: ErrUnsupportedType,
+		},
+		{
+			in: struct {
+				V int `validate:"len:10"`
+			}{},
+			expectedErr: ErrUnsupportedRule,
+		},
+		{
+			in: struct {
+				S []string `validate:"max:10"`
+			}{},
+			expectedErr: ErrUnsupportedRule,
+		},
+		{
+			in: struct {
+				V int `validate:"len"`
+			}{},
+			expectedErr: ErrInvalidRuleSyntax,
+		},
+		{
+			in: struct {
+				S string `validate:"max"`
+			}{},
+			expectedErr: ErrInvalidRuleSyntax,
+		},
 	}
 
 	for i, tt := range tests {
@@ -53,8 +162,77 @@ func TestValidate(t *testing.T) {
 			tt := tt
 			t.Parallel()
 
-			// Place your code here.
-			_ = tt
+			err := Validate(tt.in)
+			require.Equal(t, tt.expectedErr, err)
 		})
 	}
+}
+
+func TestValidateProgramErrors(t *testing.T) {
+	tests := []struct {
+		in          interface{}
+		expectedErr string
+	}{
+		{
+			in: struct {
+				V int `validate:"max:m"`
+			}{},
+			expectedErr: "strconv.ParseInt: parsing \"m\": invalid syntax",
+		},
+		{
+			in: struct {
+				V int `validate:"min:m"`
+			}{},
+			expectedErr: "strconv.ParseInt: parsing \"m\": invalid syntax",
+		},
+		{
+			in: struct {
+				S string `validate:"len:m"`
+			}{},
+			expectedErr: "strconv.Atoi: parsing \"m\": invalid syntax",
+		},
+		{
+			in: struct {
+				S string `validate:"regexp:("`
+			}{},
+			expectedErr: "error parsing regexp: missing closing ): `(`",
+		},
+		{
+			in: BrokenNested{
+				S: []BrokenIntSet{
+					{V: 1},
+				},
+			},
+			expectedErr: "strconv.Atoi: parsing \"a\": invalid syntax",
+		},
+	}
+
+	for i, tt := range tests {
+		t.Run(fmt.Sprintf("case %d", i), func(t *testing.T) {
+			tt := tt
+			t.Parallel()
+
+			err := Validate(tt.in)
+			require.NotNil(t, err)
+			require.Equal(t, tt.expectedErr, err.Error())
+		})
+	}
+}
+
+func TestValidationErrorsStringification(t *testing.T) {
+	err1 := errors.New("error 1")
+	err2 := errors.New("error 2")
+
+	errorsString := ValidationErrors{
+		ValidationError{
+			Field: "a",
+			Err:   err1,
+		},
+		ValidationError{
+			Field: "b",
+			Err:   err2,
+		},
+	}.Error()
+
+	require.Equal(t, "error 1; error 2", errorsString)
 }
