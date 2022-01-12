@@ -15,6 +15,18 @@ type EnvValue struct {
 	NeedRemove bool
 }
 
+func makeEnvValue(value []byte) EnvValue {
+	if len(value) == 0 {
+		return EnvValue{NeedRemove: true}
+	}
+
+	firstLine := string(bytes.Split(value, []byte{10})[0])
+	envValue := strings.TrimRight(firstLine, "\t ")
+	envValue = strings.ReplaceAll(envValue, string(rune(0)), "\n")
+
+	return EnvValue{Value: envValue}
+}
+
 // ReadDir reads a specified directory and returns map of env variables.
 // Variables represented as files where filename is name of variable, file first line is a value.
 func ReadDir(dir string) (Environment, error) {
@@ -34,16 +46,7 @@ func ReadDir(dir string) (Environment, error) {
 			return env, err
 		}
 
-		if len(content) == 0 {
-			env[entry.Name()] = EnvValue{NeedRemove: true}
-		} else {
-			firstLine := string(bytes.Split(content, []byte{10})[0])
-
-			value := strings.TrimRight(firstLine, "\t ")
-			value = strings.ReplaceAll(value, string(rune(0)), "\n")
-
-			env[entry.Name()] = EnvValue{Value: value}
-		}
+		env[entry.Name()] = makeEnvValue(content)
 	}
 
 	return env, nil
