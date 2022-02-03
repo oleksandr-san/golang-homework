@@ -3,21 +3,35 @@ package main
 import (
 	"context"
 	"flag"
+	"log"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/fixme_my_friend/hw12_13_14_15_calendar/internal/app"
-	"github.com/fixme_my_friend/hw12_13_14_15_calendar/internal/logger"
-	internalhttp "github.com/fixme_my_friend/hw12_13_14_15_calendar/internal/server/http"
-	memorystorage "github.com/fixme_my_friend/hw12_13_14_15_calendar/internal/storage/memory"
+	"github.com/alexandera5/hw12_13_14_15_calendar/internal/app"
+	"github.com/alexandera5/hw12_13_14_15_calendar/internal/logger"
+	internalhttp "github.com/alexandera5/hw12_13_14_15_calendar/internal/server/http"
+	memorystorage "github.com/alexandera5/hw12_13_14_15_calendar/internal/storage/memory"
+	sqlstorage "github.com/alexandera5/hw12_13_14_15_calendar/internal/storage/sql"
 )
 
 var configFile string
 
 func init() {
-	flag.StringVar(&configFile, "config", "/etc/calendar/config.toml", "Path to configuration file")
+	flag.StringVar(&configFile, "config", "/etc/calendar/config.yaml", "Path to configuration file")
+}
+
+func makeStorage(config StorageConf) app.Storage {
+	switch config.Driver {
+	case "memory":
+		return memorystorage.New()
+	case "postgresql":
+		return sqlstorage.New(config.Driver, config.Dsn)
+	default:
+		log.Fatal("Unknown storage type")
+		return nil
+	}
 }
 
 func main() {
@@ -28,13 +42,23 @@ func main() {
 		return
 	}
 
-	config := NewConfig()
-	logg := logger.New(config.Logger.Level)
+	config, err := ReadConfig(configFile)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	storage := memorystorage.New()
+	log.Println(config)
+	logg, err := logger.New(config.Logger.Level, config.Logger.File)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer logg.Close()
+
+	storage := makeStorage(config.Storage)
 	calendar := app.New(logg, storage)
 
-	server := internalhttp.NewServer(logg, calendar)
+	server := internalhttp.NewServer(
+		config.Server.Address(), logg, calendar)
 
 	ctx, cancel := signal.NotifyContext(context.Background(),
 		syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)

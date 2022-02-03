@@ -1,0 +1,14 @@
+{
+    "logger": {
+        "level": "DEBUG",
+        "file": "logs/calendar"
+    },
+    "server": {
+        "host": "localhost",
+        "port": 7099
+    },
+    "storage": {
+        "driver": "postgresql",
+        "dsn": ""
+    }
+}
