@@ -1,6 +1,7 @@
 package memorystorage
 
 import (
+	"context"
 	"sort"
 	"sync"
 	"time"
@@ -20,58 +21,50 @@ func New() *Storage {
 	}
 }
 
-func (s *Storage) CreateEvent(event storage.Event) error {
+func (s *Storage) CreateEvent(_ context.Context, event storage.Event) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	// check if event time is free?
-	// get events by day, select events with this hour,
-	// how to do that with SQL?
-	//   a) index event by begin and end timestamp!
-	//   b) search events, that during created event. If found -> error that this time is busy
 
 	s.events[event.ID] = event
 	return nil
 }
 
-func (s *Storage) GetEvent(id string) (*storage.Event, error) {
+func (s *Storage) ReadEvent(_ context.Context, eventID, _ string) (*storage.Event, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if event, ok := s.events[id]; ok {
+	if event, ok := s.events[eventID]; ok {
 		return &event, nil
 	}
 
 	return nil, storage.ErrNotFound
 }
 
-func (s *Storage) UpdateEvent(id string, updatedEvent storage.Event) error {
+func (s *Storage) UpdateEvent(_ context.Context, updatedEvent storage.Event) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if storedEvent, ok := s.events[id]; !ok {
+	if _, ok := s.events[updatedEvent.ID]; !ok {
 		return storage.ErrNotFound
-	} else if storedEvent.ID != updatedEvent.ID {
-		return storage.ErrInvalidEvent
 	}
 
-	s.events[id] = updatedEvent
+	s.events[updatedEvent.ID] = updatedEvent
 	return nil
 }
 
-func (s *Storage) DeleteEvent(id string) error {
+func (s *Storage) DeleteEvent(_ context.Context, eventID, _ string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if _, ok := s.events[id]; !ok {
+	if _, ok := s.events[eventID]; !ok {
 		return storage.ErrNotFound
 	}
 
-	delete(s.events, id)
+	delete(s.events, eventID)
 	return nil
 }
 
-func (s *Storage) ListEventsForDay(day time.Time) ([]storage.Event, error) {
+func (s *Storage) ListEventsForDay(_ context.Context, _ string, day time.Time) ([]storage.Event, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -79,7 +72,9 @@ func (s *Storage) ListEventsForDay(day time.Time) ([]storage.Event, error) {
 
 	for id := range s.events {
 		event := s.events[id]
-		if event.Start.Year() == day.Year() && event.Start.Month() == day.Month() && event.Start.Day() == day.Day() {
+		if event.StartTime.Year() == day.Year() &&
+			event.StartTime.Month() == day.Month() &&
+			event.StartTime.Day() == day.Day() {
 			events = append(events, event)
 		}
 	}
@@ -87,7 +82,7 @@ func (s *Storage) ListEventsForDay(day time.Time) ([]storage.Event, error) {
 	return events, nil
 }
 
-func (s *Storage) ListEventsForWeek(firstDay time.Time) ([]storage.Event, error) {
+func (s *Storage) ListEventsForWeek(_ context.Context, _ string, firstDay time.Time) ([]storage.Event, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -96,17 +91,21 @@ func (s *Storage) ListEventsForWeek(firstDay time.Time) ([]storage.Event, error)
 	for id := range s.events {
 		event := s.events[id]
 
-		eventYear, eventWeek := event.Start.ISOWeek()
+		eventYear, eventWeek := event.StartTime.ISOWeek()
 		year, week := firstDay.ISOWeek()
 		if eventYear == year && eventWeek == week {
 			events = append(events, event)
 		}
 	}
 
+	sort.Slice(events, func(i, j int) bool {
+		return events[i].StartTime.Before(events[j].StartTime)
+	})
+
 	return events, nil
 }
 
-func (s *Storage) ListEventsForMonth(firstDay time.Time) ([]storage.Event, error) {
+func (s *Storage) ListEventsForMonth(_ context.Context, _ string, firstDay time.Time) ([]storage.Event, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -115,8 +114,8 @@ func (s *Storage) ListEventsForMonth(firstDay time.Time) ([]storage.Event, error
 	for id := range s.events {
 		event := s.events[id]
 
-		if event.Start.Year() != firstDay.Year() ||
-			event.Start.Month() != firstDay.Month() {
+		if event.StartTime.Year() != firstDay.Year() ||
+			event.StartTime.Month() != firstDay.Month() {
 			continue
 		}
 
@@ -124,7 +123,7 @@ func (s *Storage) ListEventsForMonth(firstDay time.Time) ([]storage.Event, error
 	}
 
 	sort.Slice(events, func(i, j int) bool {
-		return events[i].Start.Before(events[j].Start)
+		return events[i].StartTime.Before(events[j].StartTime)
 	})
 
 	return events, nil

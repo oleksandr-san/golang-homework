@@ -10,6 +10,9 @@ build:
 run: build
 	$(BIN) -config ./configs/config.json
 
+migrate: build
+	$(BIN) -config ./configs/config.json migrate up
+
 build-img:
 	docker build \
 		--build-arg=LDFLAGS="$(LDFLAGS)" \

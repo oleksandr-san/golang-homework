@@ -3,11 +3,10 @@ package storage
 import "time"
 
 type Event struct {
-	ID           string
-	Title        string
-	Description  string
-	Start        time.Time
-	Duration     time.Duration
-	OwnerID      string
-	Notification time.Duration
+	ID          string
+	OwnerID     string
+	Title       string
+	Description string
+	StartTime   time.Time
+	EndTime     time.Time
 }

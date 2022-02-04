@@ -19,13 +19,14 @@ type Logger interface {
 	Error(msg string)
 }
 
-type Storage interface { // TODO
-	CreateEvent(storage.Event) error
-	UpdateEvent(id string, event storage.Event) error
-	DeleteEvent(id string) error
-	ListEventsForDay(day time.Time) ([]storage.Event, error)
-	ListEventsForWeek(firstDay time.Time) ([]storage.Event, error)
-	ListEventsForMonth(firstDay time.Time) ([]storage.Event, error)
+type Storage interface {
+	CreateEvent(ctx context.Context, event storage.Event) error
+	ReadEvent(ctx context.Context, eventID, ownerID string) (*storage.Event, error)
+	UpdateEvent(ctx context.Context, event storage.Event) error
+	DeleteEvent(ctx context.Context, eventID, ownerID string) error
+	ListEventsForDay(ctx context.Context, ownerID string, day time.Time) ([]storage.Event, error)
+	ListEventsForWeek(ctx context.Context, ownerID string, firstDay time.Time) ([]storage.Event, error)
+	ListEventsForMonth(ctx context.Context, ownerID string, firstDay time.Time) ([]storage.Event, error)
 }
 
 func New(logger Logger, storage Storage) *App {
@@ -33,7 +34,5 @@ func New(logger Logger, storage Storage) *App {
 }
 
 func (a *App) CreateEvent(ctx context.Context, id, title string) error {
-	return a.storage.CreateEvent(storage.Event{ID: id, Title: title})
+	return a.storage.CreateEvent(ctx, storage.Event{ID: id, Title: title})
 }
-
-// TODO
