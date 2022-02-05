@@ -1,7 +1,12 @@
 package storage
 
+import "time"
+
 type Event struct {
-	ID    string
-	Title string
-	// TODO
+	ID          string
+	OwnerID     string
+	Title       string
+	Description string
+	StartTime   time.Time
+	EndTime     time.Time
 }
